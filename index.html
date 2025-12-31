@@ -82,7 +82,7 @@
             document.getElementById('step2').classList.remove('hidden');
 
             // 替換成您的 n8n Webhook 1 網址
-            const n8nUrl = "https://kaiwind.app.n8n.cloud/webhook-test/get-slots" + "?duration=" + totalDuration;
+            const n8nUrl = "https://kaiwind.app.n8n.cloud/webhook/get-slots" + "?duration=" + totalDuration;
 
             try {
                 const response = await fetch(n8nUrl);
@@ -140,7 +140,7 @@
             };
 
             // 替換成您的 n8n Webhook 2 網址
-            const n8nBookingUrl = "https://kaiwind.app.n8n.cloud/webhook-test/make-booking";
+            const n8nBookingUrl = "https://kaiwind.app.n8n.cloud/webhook/make-booking";
 
             try {
                 await fetch(n8nBookingUrl, {
@@ -158,5 +158,6 @@
 </body>
 
 </html>
+
 
 
