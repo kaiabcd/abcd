@@ -6,18 +6,35 @@
     <title>美容服務預約</title>
     <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
     <style>
-        body { font-family: sans-serif; padding: 20px; background-color: #f9f9f9; }
+        /* 簡單的美化樣式 */
+        body { font-family: "Microsoft JhengHei", sans-serif; padding: 20px; background-color: #f9f9f9; color: #333; }
+        h3 { color: #d4a373; border-bottom: 2px solid #d4a373; padding-bottom: 10px; }
         .service-item { background: white; padding: 15px; margin-bottom: 10px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); display: flex; justify-content: space-between; align-items: center;}
-        .btn { display: block; width: 100%; padding: 15px; background-color: #d4a373; color: white; border: none; border-radius: 8px; font-size: 16px; cursor: pointer; margin-top: 20px;}
-        .slot-btn { background: white; border: 1px solid #d4a373; color: #d4a373; padding: 10px; margin: 5px; border-radius: 5px; width: 30%; }
-        .slot-btn.selected { background: #d4a373; color: white; }
+        .service-item label { flex-grow: 1; font-weight: bold; }
+
+        /* 按鈕樣式 */
+        .btn { display: block; width: 100%; padding: 15px; background-color: #d4a373; color: white; border: none; border-radius: 8px; font-size: 16px; cursor: pointer; margin-top: 20px; font-weight: bold; transition: background 0.3s;}
+        .btn:hover { background-color: #b08255; }
+        .btn:disabled { background-color: #ccc; cursor: not-allowed; }
+
+        /* 時段按鈕樣式 */
+        .slot-btn { background: white; border: 1px solid #d4a373; color: #d4a373; padding: 12px; margin: 5px; border-radius: 5px; width: 45%; font-size: 14px; cursor: pointer; }
+        .slot-btn.selected { background: #d4a373; color: white; border-color: #d4a373; }
+
         #slots-container { display: flex; flex-wrap: wrap; justify-content: space-between; margin-top: 20px;}
         .hidden { display: none; }
+        .loading { text-align: center; color: #888; margin-top: 20px; }
+
+        /* 輸入框 */
+        input[type="text"] { width: 100%; box-sizing: border-box; padding: 12px; margin-top: 5px; border: 1px solid #ddd; border-radius: 6px; font-size: 16px; }
     </style>
 </head>
 <body>
+
     <div id="step1">
         <h3>1. 選擇服務項目</h3>
+        <p style="font-size: 0.9em; color: #666;">請勾選您想要施作的項目，系統將自動計算所需時間。</p>
+
         <div class="service-item">
             <label>腋下除毛 (15分)</label>
             <input type="checkbox" class="service-check" data-name="腋下除毛" data-time="15">
@@ -30,58 +47,86 @@
             <label>小腿除毛 (30分)</label>
             <input type="checkbox" class="service-check" data-name="小腿除毛" data-time="30">
         </div>
-        <div style="margin-top:20px;">總時長: <span id="total-time">0</span> 分鐘</div>
+        <div class="service-item">
+            <label>孕婦除毛 (60分)</label>
+            <input type="checkbox" class="service-check" data-name="孕婦除毛" data-time="60">
+        </div>
+
+        <div style="margin-top:20px; font-weight: bold; text-align: right;">
+            總時長: <span id="total-time" style="color:#d4a373; font-size: 1.2em;">0</span> 分鐘
+        </div>
         <button class="btn" onclick="getSlots()">查詢空檔</button>
     </div>
 
     <div id="step2" class="hidden">
         <h3>2. 選擇時段</h3>
-        <div id="loading">讀取行事曆中...</div>
+        <div id="loading" class="loading">正在讀取美容師的行事曆...<br>請稍候</div>
         <div id="slots-container"></div>
+        <button class="btn" style="background-color: #999; margin-top: 10px;" onclick="location.reload()">重新選擇服務</button>
     </div>
 
     <div id="step3" class="hidden">
-        <h3>3. 確認預約</h3>
-        <p>服務：<span id="confirm-services"></span></p>
-        <p>時間：<span id="confirm-time"></span></p>
-        <div style="margin-bottom:15px;">
-            <input type="text" id="customer-name" placeholder="請輸入您的稱呼" style="width:90%; padding:10px; border:1px solid #ddd; border-radius:5px;">
+        <h3>3. 確認預約資訊</h3>
+        <div style="background: white; padding: 15px; border-radius: 8px;">
+            <p><strong>服務項目：</strong><br><span id="confirm-services"></span></p>
+            <p><strong>預約時間：</strong><br><span id="confirm-time" style="color:#d4a373; font-weight:bold;"></span></p>
+            <p><strong>總時長：</strong><span id="confirm-duration"></span> 分鐘</p>
+
+            <hr style="border: 0; border-top: 1px solid #eee; margin: 15px 0;">
+
+            <label><strong>您的稱呼：</strong></label>
+            <input type="text" id="customer-name" placeholder="請輸入小姐/先生">
         </div>
-        <button class="btn" onclick="submitBooking()">確認送出</button>
+        <button class="btn" onclick="submitBooking()" id="submit-btn">確認送出預約</button>
+        <button class="btn" style="background-color: #999; margin-top: 10px;" onclick="backToStep2()">回上一步</button>
     </div>
 
     <script>
+        // ==========================================
+        // ⚠️ 設定區：請務必修改以下三個變數 ⚠️
+        // ==========================================
+        const LIFF_ID = "YOUR_LIFF_ID";  // 例如 "1657xxxx-xxxx"
+        const API_GET_SLOTS = "YOUR_N8N_GET_SLOTS_URL"; // Webhook 1 (查詢空檔)
+        const API_BOOKING = "YOUR_N8N_BOOKING_URL";     // Webhook 2 (預約)
+        // ==========================================
+
         let totalDuration = 0;
         let selectedServices = [];
         let selectedSlot = null;
-        let lineUserId = ""; // 新增：用來存 User ID
+        let lineUserId = ""; // 用來存使用者的 User ID
 
-        // 初始化 LIFF
-        liff.init({ liffId: "2008803293-hFXsi0nu" }); // 記得換成您的 LIFF ID
-        .then(() => {
-        // 新增：初始化成功後，檢查使用者是否登入
-        if (!liff.isLoggedIn()) {
-            liff.login();
-        } else {
-            // 新增：抓取使用者資料
-            liff.getProfile()
-                .then(profile => {
-                    lineUserId = profile.userId; // 存下來，等一下預約時要用
-                    console.log("User ID:", lineUserId);
+        // 1. 初始化 LIFF
+        window.onload = function() {
+            liff.init({ liffId: "2008803293-hFXsi0nu" })
+                .then(() => {
+                    // 初始化成功
+                    if (!liff.isLoggedIn()) {
+                        liff.login(); // 沒登入就叫他登入
+                    } else {
+                        // 抓取使用者資料
+                        liff.getProfile()
+                            .then(profile => {
+                                lineUserId = profile.userId;
+                                console.log("取得 User ID:", lineUserId);
+                            })
+                            .catch(err => {
+                                console.error("無法取得 Profile:", err);
+                                alert("讀取 LINE 資料失敗，請重新開啟");
+                            });
+                    }
                 })
                 .catch((err) => {
-                    console.error("抓不到資料", err);
+                    console.error("LIFF 初始化失敗:", err);
+                    alert("LIFF 初始化失敗，請確認 ID 是否正確");
                 });
-                }
-        })
-        .catch((err) => {
-            console.error("LIFF 初始化失敗", err);
-        });
-        // 監聽勾選事件
+        };
+
+        // 2. 監聽勾選服務事件
         document.querySelectorAll('.service-check').forEach(item => {
             item.addEventListener('change', event => {
                 let time = parseInt(event.target.dataset.time);
                 let name = event.target.dataset.name;
+
                 if(event.target.checked) {
                     totalDuration += time;
                     selectedServices.push(name);
@@ -93,41 +138,52 @@
             });
         });
 
-        // 呼叫 n8n 查詢空檔
+        // 3. 查詢空檔 (前往步驟二)
         async function getSlots() {
             if (totalDuration === 0) return alert("請至少選擇一項服務");
-            
+            if (totalDuration > 300) return alert("服務時間過長，請分開預約");
+
+            // 切換畫面
             document.getElementById('step1').classList.add('hidden');
             document.getElementById('step2').classList.remove('hidden');
 
-            // 替換成您的 n8n Webhook 1 網址
-            const n8nUrl = "https://kaiwind.app.n8n.cloud/webhook/get-slots" + "?duration=" + totalDuration;
+            // 組合查詢網址 (把時長放在網址參數裡傳給 n8n)
+            // 加上時間戳記避免瀏覽器快取
+            const fetchUrl = `${"https://kaiwind.app.n8n.cloud/webhook/get-slots"}?duration=${totalDuration}&t=${new Date().getTime()}`;
 
             try {
-                const response = await fetch(n8nUrl);
+                const response = await fetch(fetchUrl);
                 const data = await response.json();
                 renderSlots(data.slots);
             } catch (e) {
-                alert("查詢失敗，請稍後再試");
                 console.error(e);
+                alert("連線失敗，請檢查網路或稍後再試。");
+                // 發生錯誤時退回上一步
+                document.getElementById('step1').classList.remove('hidden');
+                document.getElementById('step2').classList.add('hidden');
             }
         }
 
+        // 4. 顯示空檔按鈕
         function renderSlots(slots) {
             const container = document.getElementById('slots-container');
             document.getElementById('loading').classList.add('hidden');
             container.innerHTML = '';
 
-            if(slots.length === 0) {
-                container.innerHTML = '<p>近期無符合時長的空檔，請聯繫客服。</p>';
+            if(!slots || slots.length === 0) {
+                container.innerHTML = '<div style="width:100%; text-align:center; padding:20px;">抱歉，近期沒有符合此時長的空檔。<br>請嘗試減少服務項目或聯繫客服。</div>';
                 return;
             }
 
             slots.forEach(slot => {
+                // slot 格式: { date: "2023-10-01", time: "14:00", datetime: "..." }
                 const btn = document.createElement('button');
                 btn.className = 'slot-btn';
-                btn.innerText = `${slot.date.slice(5)} ${slot.time}`; // 顯示 MM-DD HH:mm
+                // 顯示格式：10/01 14:00
+                btn.innerText = `${slot.date.slice(5).replace('-','/')} ${slot.time}`;
+
                 btn.onclick = () => {
+                    // 清除其他按鈕的選取狀態
                     document.querySelectorAll('.slot-btn').forEach(b => b.classList.remove('selected'));
                     btn.classList.add('selected');
                     selectedSlot = slot;
@@ -137,51 +193,60 @@
             });
         }
 
+        // 5. 前往確認頁面 (步驟三)
         function goToStep3() {
             document.getElementById('step2').classList.add('hidden');
             document.getElementById('step3').classList.remove('hidden');
-            document.getElementById('confirm-services').innerText = selectedServices.join(', ');
+
+            document.getElementById('confirm-services').innerText = selectedServices.join(' + ');
             document.getElementById('confirm-time').innerText = `${selectedSlot.date} ${selectedSlot.time}`;
+            document.getElementById('confirm-duration').innerText = totalDuration;
         }
 
-        // 送出預約
-        async function submitBooking() {
-        const name = document.getElementById('customer-name').value;
-        if(!name) return alert("請輸入稱呼");
-        
-        // 檢查有沒有抓到 User ID
-        if(!lineUserId) return alert("無法讀取 LINE 使用者資料，請重新開啟");
-    
-        const bookingData = {
-            userId: lineUserId, // 新增：把這個 ID 傳給 n8n
-            name: name,
-            services: selectedServices.join(', '),
-            duration: totalDuration,
-            datetime: selectedSlot.datetime,
-            date: selectedSlot.date,
-            time: selectedSlot.time
-        };
-    
-        const n8nBookingUrl = "https://kaiwind.app.n8n.cloud/webhook/make-booking"; // Webhook 2 (Make Booking)
-    
-        try {
-            await fetch(n8nBookingUrl, {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify(bookingData)
-            });
-            alert("預約成功！請查看 LINE 通知");
-            liff.closeWindow();
-        } catch (e) {
-            alert("預約發生錯誤");
-            console.error(e);
+        function backToStep2() {
+            document.getElementById('step3').classList.add('hidden');
+            document.getElementById('step2').classList.remove('hidden');
         }
+
+        // 6. 送出預約
+        async function submitBooking() {
+            const name = document.getElementById('customer-name').value.trim();
+            if(!name) return alert("請輸入您的稱呼");
+            if(!lineUserId) return alert("系統無法讀取您的 LINE ID，請重新開啟頁面");
+
+            // 鎖定按鈕避免重複發送
+            const btn = document.getElementById('submit-btn');
+            btn.disabled = true;
+            btn.innerText = "預約處理中...";
+
+            const bookingData = {
+                userId: lineUserId, // 關鍵：把 ID 傳給 n8n 做推播
+                name: name,
+                services: selectedServices.join(', '),
+                duration: totalDuration,
+                datetime: selectedSlot.datetime, // 用於寫入日曆的標準時間格式
+                date: selectedSlot.date,         // 顯示用
+                time: selectedSlot.time          // 顯示用
+            };
+
+            try {
+                // 發送 POST 請求給 n8n
+                await fetch("https://kaiwind.app.n8n.cloud/webhook/make-booking", {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(bookingData)
+                });
+
+                alert("預約成功！\n請留意 LINE 聊天室的確認訊息。");
+                liff.closeWindow(); // 關閉視窗
+
+            } catch (e) {
+                console.error(e);
+                alert("預約發生錯誤，請截圖聯繫客服。");
+                btn.disabled = false;
+                btn.innerText = "確認送出預約";
+            }
         }
     </script>
 </body>
-
 </html>
-
-
-
-
