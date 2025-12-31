@@ -85,9 +85,9 @@
         // ==========================================
         // ⚠️ 設定區：請務必修改以下三個變數 ⚠️
         // ==========================================
-        const LIFF_ID = "YOUR_LIFF_ID";  // 例如 "1657xxxx-xxxx"
-        const API_GET_SLOTS = "YOUR_N8N_GET_SLOTS_URL"; // Webhook 1 (查詢空檔)
-        const API_BOOKING = "YOUR_N8N_BOOKING_URL";     // Webhook 2 (預約)
+        const LIFF_ID = "2008803293-hFXsi0nu";  // 例如 "1657xxxx-xxxx"
+        const API_GET_SLOTS = "https://kaiwind.app.n8n.cloud/webhook/get-slots"; // Webhook 1 (查詢空檔)
+        const API_BOOKING = "https://kaiwind.app.n8n.cloud/webhook/make-booking";     // Webhook 2 (預約)
         // ==========================================
 
         let totalDuration = 0;
@@ -97,7 +97,7 @@
 
         // 1. 初始化 LIFF
         window.onload = function() {
-            liff.init({ liffId: "2008803293-hFXsi0nu" })
+            liff.init({ liffId: LIFF_ID })
                 .then(() => {
                     // 初始化成功
                     if (!liff.isLoggedIn()) {
@@ -149,7 +149,7 @@
 
             // 組合查詢網址 (把時長放在網址參數裡傳給 n8n)
             // 加上時間戳記避免瀏覽器快取
-            const fetchUrl = `${"https://kaiwind.app.n8n.cloud/webhook/get-slots"}?duration=${totalDuration}&t=${new Date().getTime()}`;
+            const fetchUrl = `${API_GET_SLOTS}?duration=${totalDuration}&t=${new Date().getTime()}`;
 
             try {
                 const response = await fetch(fetchUrl);
@@ -231,7 +231,7 @@
 
             try {
                 // 發送 POST 請求給 n8n
-                await fetch("https://kaiwind.app.n8n.cloud/webhook/make-booking", {
+                await fetch(API_BOOKING, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(bookingData)
