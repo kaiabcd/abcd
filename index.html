@@ -54,10 +54,29 @@
         let totalDuration = 0;
         let selectedServices = [];
         let selectedSlot = null;
+        let lineUserId = ""; // 新增：用來存 User ID
 
         // 初始化 LIFF
         liff.init({ liffId: "2008803293-hFXsi0nu" }); // 記得換成您的 LIFF ID
-
+        .then(() => {
+        // 新增：初始化成功後，檢查使用者是否登入
+        if (!liff.isLoggedIn()) {
+            liff.login();
+        } else {
+            // 新增：抓取使用者資料
+            liff.getProfile()
+                .then(profile => {
+                    lineUserId = profile.userId; // 存下來，等一下預約時要用
+                    console.log("User ID:", lineUserId);
+                })
+                .catch((err) => {
+                    console.error("抓不到資料", err);
+                });
+                }
+        })
+        .catch((err) => {
+            console.error("LIFF 初始化失敗", err);
+        });
         // 監聽勾選事件
         document.querySelectorAll('.service-check').forEach(item => {
             item.addEventListener('change', event => {
@@ -127,37 +146,42 @@
 
         // 送出預約
         async function submitBooking() {
-            const name = document.getElementById('customer-name').value;
-            if(!name) return alert("請輸入稱呼");
-
-            const bookingData = {
-                name: name,
-                services: selectedServices.join(', '),
-                duration: totalDuration,
-                datetime: selectedSlot.datetime,
-                date: selectedSlot.date,
-                time: selectedSlot.time
-            };
-
-            // 替換成您的 n8n Webhook 2 網址
-            const n8nBookingUrl = "https://kaiwind.app.n8n.cloud/webhook/make-booking";
-
-            try {
-                await fetch(n8nBookingUrl, {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify(bookingData)
-                });
-                alert("預約成功！請查看 LINE 通知");
-                liff.closeWindow();
-            } catch (e) {
-                alert("預約發生錯誤");
-            }
+        const name = document.getElementById('customer-name').value;
+        if(!name) return alert("請輸入稱呼");
+        
+        // 檢查有沒有抓到 User ID
+        if(!lineUserId) return alert("無法讀取 LINE 使用者資料，請重新開啟");
+    
+        const bookingData = {
+            userId: lineUserId, // 新增：把這個 ID 傳給 n8n
+            name: name,
+            services: selectedServices.join(', '),
+            duration: totalDuration,
+            datetime: selectedSlot.datetime,
+            date: selectedSlot.date,
+            time: selectedSlot.time
+        };
+    
+        const n8nBookingUrl = "https://kaiwind.app.n8n.cloud/webhook/make-booking"; // Webhook 2 (Make Booking)
+    
+        try {
+            await fetch(n8nBookingUrl, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(bookingData)
+            });
+            alert("預約成功！請查看 LINE 通知");
+            liff.closeWindow();
+        } catch (e) {
+            alert("預約發生錯誤");
+            console.error(e);
+        }
         }
     </script>
 </body>
 
 </html>
+
 
 
 
